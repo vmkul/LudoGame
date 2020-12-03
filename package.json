@@ -1,0 +1,27 @@
+{
+  "name": "ludogame",
+  "version": "1.0.0",
+  "description": "Algorithm 5th lab",
+  "main": "game.js",
+  "scripts": {
+    "test": "eslint .",
+    "build": "sass styles/style.sass styles/style.css"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vmkul/LudoGame.git"
+  },
+  "keywords": [
+    "ludo",
+    "game"
+  ],
+  "author": "vmkul",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/vmkul/LudoGame/issues"
+  },
+  "homepage": "https://github.com/vmkul/LudoGame#readme",
+  "dependencies": {
+    "sass": "^1.29.0"
+  }
+}
