@@ -215,12 +215,13 @@ const calculateMove = (piece, diceRoll, player, pieces, enemyPieces) => {
 const playerTurn = async gameState => {
   const redPieces = gameState.positions.red.pos;
   const diceRoll = getRandom(1, 7);
+  const extraTurn = diceRoll === 6;
   logger.log('Player rolled ' + diceRoll);
 
   const ableToMove = getFreePieces(redPieces, diceRoll);
 
   if (ableToMove.length === 0) {
-    return;
+    return { isOver: false, extraTurn };
   }
 
   let piece;
@@ -237,19 +238,19 @@ const playerTurn = async gameState => {
     redPieces, gameState.positions.yellow.pos);
   if (msg) logger.log(msg);
 
-  if (diceRoll === 6) return await playerTurn(gameState);
-  return isOver;
+  return { isOver, extraTurn };
 };
 
 const botTurn = gameState => {
   const yellowPieces = gameState.positions.yellow.pos;
   const diceRoll = getRandom(1, 7);
+  const extraTurn = diceRoll === 6;
   logger.log('Computer rolled ' + diceRoll);
 
   const ableToMove = getFreePieces(yellowPieces, diceRoll);
 
   if (ableToMove.length === 0) {
-    return;
+    return { isOver: false, extraTurn };
   }
   const piece = ableToMove[getRandom(0, ableToMove.length)];
 
@@ -257,8 +258,7 @@ const botTurn = gameState => {
     yellowPieces, gameState.positions.red.pos);
   if (msg) logger.log(msg);
 
-  if (diceRoll === 6) return botTurn(gameState);
-  return isOver;
+  return { isOver, extraTurn };
 };
 
 const game = new GameState();
@@ -268,21 +268,29 @@ game.render();
 (async () => {
   while (true) {
     if (game.currentTurn === 'RED') {
-      const playerResult = await playerTurn(game);
+      const { isOver, extraTurn } = await playerTurn(game);
       game.render();
-      if (playerResult) {
+
+      if (isOver) {
         logger.log('Player won!');
         break;
       }
-      game.currentTurn = 'YELLOW';
+
+      if (!extraTurn) {
+        game.currentTurn = 'YELLOW';
+      }
     } else {
-      const computerResult = await botTurn(game);
+      const { isOver, extraTurn } = await botTurn(game);
       game.render();
-      if (computerResult) {
+
+      if (isOver) {
         logger.log('Computer won!');
         break;
       }
-      game.currentTurn = 'RED';
+
+      if (!extraTurn) {
+        game.currentTurn = 'RED';
+      }
     }
     await wait(1000);
   }
