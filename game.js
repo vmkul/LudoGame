@@ -1,7 +1,7 @@
 'use strict';
 
 import * as coordinates from './squareCoordinates.js';
-import {redSquares, squareCoordinates} from "./squareCoordinates.js";
+import { redSquares, squareCoordinates } from './squareCoordinates.js';
 const logArea = document.getElementById('log-area');
 const YELLOW_START = 26;
 const YELLOW_FINISH = 24;
@@ -29,6 +29,14 @@ const wait = ms => new Promise((resolve => {
 }));
 
 const getRandom = (min, max) => Math.floor(Math.random() * (max - min)) + min;
+
+const clonePiece = piece => new Piece(piece.squareType, piece.coordinate, {}, piece.start, piece.finish);
+
+const clonePieces = pieces => {
+  const result = [];
+  pieces.forEach(p => result.push(clonePiece(p)));
+  return result;
+};
 
 class Piece {
   constructor(squareType, coordinate, element, start, finish) {
@@ -241,8 +249,80 @@ const playerTurn = async gameState => {
   return { isOver, extraTurn };
 };
 
+const buildTree = (player, pieces, enemyPieces, prev, cb, limit = 0) => {
+  if (limit++ > 5) return cb(prev);
+  const red = player === 'Computer' ? pieces : enemyPieces;
+  const finalCount = red.filter(p => p.squareType === 'final').length;
+
+  const state = {
+    finalCount,
+    prev: prev ? prev : null,
+    player,
+    childNodes: [],
+  };
+
+  if (prev) {
+    prev.childNodes.push(state);
+  }
+
+  for (let i = 1; i < 7; i++) {
+    const ableToMove = getFreePieces(pieces, i);
+    const indices = ableToMove.map(p => pieces.indexOf(p));
+
+    if (ableToMove.length === 0) {
+      continue;
+    }
+
+    indices.forEach(index => {
+      let pieceCopy = clonePieces(pieces);
+      let enemyCopy = clonePieces(enemyPieces);
+
+      const { isOver } = calculateMove(pieceCopy[index], i, '', pieceCopy, enemyCopy);
+      [ pieceCopy, enemyCopy ] = [ enemyCopy, pieceCopy ];
+
+      state.index = index;
+
+      if (isOver) {
+        return cb(state);
+      }
+
+      const nextPlayer = state.player === 'Player' ? 'Computer' : 'Player';
+      buildTree(nextPlayer, pieceCopy, enemyCopy, state, cb, limit);
+    });
+  }
+};
+
+const TreeBuilder = (player, pieces, enemyPieces) => {
+  const friendlies = clonePieces(pieces);
+  const enemies = clonePieces(enemyPieces);
+  const results = [];
+
+  const evalTree = leaf => {
+    let score = 0;
+
+    for (const node of leaf.childNodes) {
+      score += (1 / 6) * (node.score ? node.score : node.finalCount);
+    }
+
+    leaf.score = score;
+
+    if (leaf.prev) {
+      return evalTree(leaf.prev);
+    } else {
+      results.push(leaf);
+    }
+  }
+
+  buildTree(player, friendlies, enemies, null, evalTree);
+
+  const res = results.sort((a, b) => b.score - a.score)[0];
+  console.log(res);
+  return res.index;
+};
+
 const botTurn = gameState => {
   const yellowPieces = gameState.positions.yellow.pos;
+  const redPieces = gameState.positions.red.pos;
   const diceRoll = getRandom(1, 7);
   const extraTurn = diceRoll === 6;
   logger.log('Computer rolled ' + diceRoll);
@@ -252,7 +332,40 @@ const botTurn = gameState => {
   if (ableToMove.length === 0) {
     return { isOver: false, extraTurn };
   }
-  const piece = ableToMove[getRandom(0, ableToMove.length)];
+
+  const finalCount = yellowPieces.filter(p => p.squareType === 'final').length;
+  let piece;
+
+  if (finalCount === 2 && ableToMove.length === 2) {
+    console.log('building tree...');
+    const index = TreeBuilder('Computer', yellowPieces, redPieces);
+    piece = yellowPieces[index];
+  } else {
+    ableToMove.forEach(p => {
+      if (p.squareType === 'home') {
+        piece = p;
+      } else if (p.squareType === 'white') {
+        const coordinate = p.coordinate + diceRoll;
+        if (p.coordinate === p.finish && diceRoll === 6) {
+          piece = p;
+          return;
+        }
+        redPieces.forEach(red => {
+          if (red.coordinate === coordinate) {
+            piece = p;
+          }
+        });
+      } else if (p.squareType === 'colored') {
+        if (p.coordinate + diceRoll === redSquares.length) {
+          piece = p;
+        }
+      }
+    });
+
+    if (!piece) {
+      piece = ableToMove[getRandom(0, ableToMove.length)];
+    }
+  }
 
   const { isOver, msg } = calculateMove(piece, diceRoll, 'Computer',
     yellowPieces, gameState.positions.red.pos);
